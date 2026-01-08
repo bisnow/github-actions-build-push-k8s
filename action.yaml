@@ -17,19 +17,61 @@ inputs:
   github-sha:
     description: 'GitHub commit SHA'
     required: true
+  auth-json:
+    description: 'Create auth-json for composer auth and/or flux auth'
+    required: false
+    default: ''
   composer-auth:
     description: 'Composer authentication token for GitHub'
     required: false
+  flux-username:
+    description: 'Flux UI username for http-basic authentication'
+    required: false
+  flux-license-key:
+    description: 'Flux UI license key for http-basic authentication'
+    required: false
+  php-version:
+    description: 'PHP version to set up'
+    required: false
+    default: '8.3'
   install-dependencies:
     description: 'Install composer dependencies in workflow'
     required: false
     default: ''
+  no-cache:
+    description: 'Build without using cache (slower but ensures fresh build)'
+    required: false
+    type: boolean
+    default: false
+  build-args:
+    description: 'Build args to pass to docker build'
+    required: false
 
 runs:
   using: composite
   steps:
     - name: Checkout Repository
       uses: actions/checkout@v5
+
+    - name: Set up PHP
+      if: ${{ inputs.auth-json != '' && (inputs.composer-auth != '' || (inputs.flux-username != '' && inputs.flux-license-key != '')) }}
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        tools: composer:v2
+
+    - name: Configure Composer credentials
+      if: ${{ inputs.auth-json != '' && (inputs.composer-auth != '' || (inputs.flux-username != '' && inputs.flux-license-key != '')) }}
+      shell: bash
+      run: |
+        # Configure GitHub OAuth
+        if [ -n "${{ inputs.composer-auth }}" ]; then
+          composer config github-oauth.github.com "${{ inputs.composer-auth }}"
+        fi
+        # Configure Flux credentials
+        if [ -n "${{ inputs.flux-username }}" ] && [ -n "${{ inputs.flux-license-key }}" ]; then
+          composer config http-basic.composer.fluxui.dev "${{ inputs.flux-username }}" "${{ inputs.flux-license-key }}"
+        fi
 
     - name: Assume role for AWS Account
       uses: bisnow/github-actions-assume-role-for-environment@main
@@ -58,11 +100,12 @@ runs:
         context: .
         platforms: ${{ inputs.platform }}
         push: true
+        no-cache: "${{ inputs.no-cache || false }}"
         tags: |
           ${{ inputs.ecr-registry }}:${{ inputs.image-tag }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           ${{ inputs.ecr-registry }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
         cache-from: type=registry,ref=${{ inputs.ecr-registry }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
         cache-to: type=registry,ref=${{ inputs.ecr-registry }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
-        build-args: ${{ inputs.install-dependencies == '' && inputs.composer-auth != '' && format('COMPOSER_AUTH={{"github-oauth":{{"github.com":"{0}"}}}}', inputs.composer-auth) || '' }}
+        build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false
