@@ -46,12 +46,29 @@ inputs:
   build-args:
     description: 'Build args to pass to docker build'
     required: false
+  build-assets:
+    description: 'Build assets'
+    required: false
+    default: ''
 
 runs:
   using: composite
   steps:
     - name: Checkout Repository
       uses: actions/checkout@v5
+
+    - name: Use Node.js
+      if: ${{ inputs.build-assets != '' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+
+    - name: Build Assets
+      if: ${{ inputs.build-assets != '' }}
+      shell: bash
+      run: |
+        npm ci
+        npm run build
 
     - name: Set up PHP
       if: ${{ inputs.auth-json != '' && (inputs.composer-auth != '' || (inputs.flux-username != '' && inputs.flux-license-key != '')) }}
