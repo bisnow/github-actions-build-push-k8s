@@ -9,6 +9,7 @@ This will be used in the process of deploying to kubernetes
 - Automatic ECR authentication
 - Docker layer caching for faster builds
 - Optional Composer dependency installation in workflow
+- Optional asset building (npm) before Docker build
 - Flexible authentication options:
   - Create auth.json for Dockerfile consumption
   - GitHub Composer OAuth tokens
@@ -30,6 +31,7 @@ This will be used in the process of deploying to kubernetes
 | `flux-license-key` | Flux UI license key for http-basic authentication | No | - |
 | `php-version` | PHP version to set up (used when `auth-json` is enabled) | No | `8.3` |
 | `install-dependencies` | Install composer dependencies in workflow before building | No | `''` |
+| `build-assets` | Build npm assets before Docker build (set to any non-empty value to enable) | No | `''` |
 | `no-cache` | Build without using cache (slower but ensures fresh build) | No | `false` |
 | `build-args` | Custom build arguments to pass to Docker build | No | - |
 
@@ -94,6 +96,25 @@ steps:
       composer-auth: ${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
       install-dependencies: 'true'
 ```
+
+### With Asset Building
+
+Build npm assets before the Docker build. This sets up Node.js 22.x and runs `npm ci` followed by `npm run build`:
+
+```yaml
+steps:
+  - name: Build and Push Image
+    uses: bisnow/github-actions-build-push-k8s@main
+    with:
+      aws-account: bisnow
+      platform: linux/amd64
+      image-tag: dev-${{ github.run_number }}
+      ecr-registry: 560285300220.dkr.ecr.us-east-1.amazonaws.com/myapp
+      github-sha: ${{ github.sha }}
+      build-assets: 'true'
+```
+
+The built assets will be included in the Docker build context, allowing you to copy them into your image without running npm during the Docker build.
 
 ### With auth.json for Dockerfile (Recommended)
 
@@ -171,14 +192,17 @@ steps:
 ## How It Works
 
 1. Checks out the repository
-2. (Optional) Sets up PHP and configures Composer credentials if `auth-json` is enabled
+2. (Optional) Sets up Node.js 22.x and builds assets if `build-assets` is enabled
+   - Runs `npm ci` to install dependencies
+   - Runs `npm run build` to build assets
+3. (Optional) Sets up PHP and configures Composer credentials if `auth-json` is enabled
    - Creates auth.json file with GitHub OAuth and/or Flux credentials
    - Supports both GitHub and Flux UI authentication
-3. Assumes the specified AWS role for ECR access
-4. (Optional) Installs Composer dependencies if `install-dependencies` is set
-5. Sets up Docker Buildx for multi-platform builds
-6. Logs into Amazon ECR
-7. Builds and pushes the Docker image with:
+4. Assumes the specified AWS role for ECR access
+5. (Optional) Installs Composer dependencies if `install-dependencies` is set
+6. Sets up Docker Buildx for multi-platform builds
+7. Logs into Amazon ECR
+8. Builds and pushes the Docker image with:
    - Two tags: `{image-tag}-{arch}` and `{github-sha}-{arch}`
    - Registry layer caching for faster subsequent builds
    - Optional custom build arguments
