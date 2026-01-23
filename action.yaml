@@ -101,7 +101,7 @@ runs:
       env:
         COMPOSER_AUTH: "{\"github-oauth\":{\"github.com\":\"${{ inputs.composer-auth }}\"}}"
       with:
-        args: --profile --ignore-platform-reqs --optimize-autoloader
+        args: --no-dev --profile --ignore-platform-reqs --optimize-autoloader
         memory_limit: -1
 
     - name: Set up Docker Buildx
