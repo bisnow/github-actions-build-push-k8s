@@ -126,3 +126,4 @@ runs:
         build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false
+        secret-files: ${{ inputs.auth-json != '' && 'composer_auth=auth.json' || '' }}
