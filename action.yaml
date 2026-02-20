@@ -1,22 +1,28 @@
-name: Build and Push Docker Image to ECR
-description: Builds a Docker image and pushes it to Amazon ECR
+name: Build and Push Docker Image
+description: Builds a Docker image and pushes it to either Amazon ECR or Harbor
 
 inputs:
-  aws-account:
-    description: 'AWS account name to assume role for'
-    required: true
   platform:
     description: 'Platform to build for (e.g., linux/amd64 or linux/arm64)'
     required: true
   image-tag:
     description: 'Image tag to use (e.g., dev-123)'
     required: true
-  ecr-registry:
-    description: 'ECR registry URL'
-    required: true
   github-sha:
     description: 'GitHub commit SHA'
     required: true
+  ecr-registry:
+    description: 'ECR registry URL. Provide this OR harbor-registry, not both.'
+    required: false
+    default: ''
+  harbor-registry:
+    description: 'Harbor registry URL (e.g., harbor.bisnow.cloud/bisnow/hello-k8s). Provide this OR ecr-registry, not both.'
+    required: false
+    default: ''
+  aws-account:
+    description: 'AWS account name to assume role for'
+    required: false
+    default: 'bisnow'
   auth-json:
     description: 'Create auth-json for composer auth and/or flux auth'
     required: false
@@ -54,6 +60,28 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Validate registry inputs
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.ecr-registry }}" ] && [ -z "${{ inputs.harbor-registry }}" ]; then
+          echo "ERROR: You must provide either ecr-registry or harbor-registry"
+          exit 1
+        fi
+        if [ -n "${{ inputs.ecr-registry }}" ] && [ -n "${{ inputs.harbor-registry }}" ]; then
+          echo "ERROR: Provide ecr-registry OR harbor-registry, not both"
+          exit 1
+        fi
+
+    - name: Set active registry
+      id: registry
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.harbor-registry }}" ]; then
+          echo "url=${{ inputs.harbor-registry }}" >> $GITHUB_OUTPUT
+        else
+          echo "url=${{ inputs.ecr-registry }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Checkout Repository
       uses: actions/checkout@v5
 
@@ -81,11 +109,9 @@ runs:
       if: ${{ inputs.auth-json != '' && (inputs.composer-auth != '' || (inputs.flux-username != '' && inputs.flux-license-key != '')) }}
       shell: bash
       run: |
-        # Configure GitHub OAuth
         if [ -n "${{ inputs.composer-auth }}" ]; then
           composer config github-oauth.github.com "${{ inputs.composer-auth }}"
         fi
-        # Configure Flux credentials
         if [ -n "${{ inputs.flux-username }}" ] && [ -n "${{ inputs.flux-license-key }}" ]; then
           composer config http-basic.composer.fluxui.dev "${{ inputs.flux-username }}" "${{ inputs.flux-license-key }}"
         fi
@@ -111,7 +137,7 @@ runs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build and Push ${{ inputs.platform }} Image to ECR (${{ inputs.image-tag }})
+    - name: Build and Push ${{ inputs.platform }} Image (${{ inputs.image-tag }})
       uses: docker/build-push-action@v6
       with:
         context: .
@@ -119,10 +145,10 @@ runs:
         push: true
         no-cache: "${{ inputs.no-cache || false }}"
         tags: |
-          ${{ inputs.ecr-registry }}:${{ inputs.image-tag }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-          ${{ inputs.ecr-registry }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-        cache-from: type=registry,ref=${{ inputs.ecr-registry }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-        cache-to: type=registry,ref=${{ inputs.ecr-registry }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
+          ${{ steps.registry.outputs.url }}:${{ inputs.image-tag }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          ${{ steps.registry.outputs.url }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        cache-from: type=registry,ref=${{ steps.registry.outputs.url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        cache-to: type=registry,ref=${{ steps.registry.outputs.url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
         build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false
