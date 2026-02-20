@@ -20,7 +20,7 @@ inputs:
     required: false
     default: ''
   aws-account:
-    description: 'AWS account name to assume role for (only used when pushing to ECR)'
+    description: 'AWS account name to assume role for'
     required: false
     default: 'bisnow'
   auth-json:
@@ -117,7 +117,6 @@ runs:
         fi
 
     - name: Assume role for AWS Account
-      if: ${{ inputs.harbor-registry == '' }}
       uses: bisnow/github-actions-assume-role-for-environment@main
       with:
         aws-account: ${{ inputs.aws-account }}
@@ -135,7 +134,6 @@ runs:
       uses: docker/setup-buildx-action@v3
 
     - name: Login to Amazon ECR
-      if: ${{ inputs.harbor-registry == '' }}
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
