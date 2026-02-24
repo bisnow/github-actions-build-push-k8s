@@ -1,5 +1,5 @@
 name: Build and Push Docker Image
-description: Builds a Docker image and pushes it to either Amazon ECR or Harbor
+description: Builds a Docker image and pushes it to Amazon ECR and Harbor
 
 inputs:
   platform:
