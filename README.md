@@ -1,6 +1,6 @@
 # Build and Push Docker Image to ECR and Harbor
 
-A composite GitHub Action that builds multi-platform Docker images and pushes them to both Amazon ECR and Harbor. Registry URLs are automatically constructed from the service name and namespace, so you don't need to pass them in. This action is used in the process of deploying to Kubernetes.
+A composite GitHub Action that builds multi-platform Docker images and pushes them to both Amazon ECR and Harbor. Registry URLs are automatically constructed from the service name and business unit, so you don't need to pass them in. This action is used in the process of deploying to Kubernetes.
 
 ## Features
 
@@ -25,7 +25,7 @@ A composite GitHub Action that builds multi-platform Docker images and pushes th
 | `image-tag` | Image tag to use (e.g., `dev-123`) | Yes | - |
 | `github-sha` | GitHub commit SHA for tagging | Yes | - |
 | `service-name` | Name of service for location to store images in container repo | Yes | - |
-| `namespace` | Namespace of app for Harbor | Yes | - |
+| `business-unit` | Specify if this is bisnow or biscred | Yes | - |
 | `aws-account` | AWS account name to assume role for | No | `bisnow` |
 | `auth-json` | Create auth.json for composer/flux auth (set to any non-empty value to enable) | No | `''` |
 | `composer-auth` | Composer authentication token for GitHub | No | - |
@@ -42,13 +42,13 @@ A composite GitHub Action that builds multi-platform Docker images and pushes th
 The action automatically constructs registry URLs based on your inputs:
 
 - **ECR**: `560285300220.dkr.ecr.us-east-1.amazonaws.com/{service-name}`
-- **Harbor**: `harbor.bisnow.cloud/{namespace}/{service-name}`
+- **Harbor**: `harbor.bisnow.cloud/{business-unit}/{service-name}`
 
-For example, with `service-name: hello-k8s` and `namespace: bisnow`:
+For example, with `service-name: hello-k8s` and `business-unit: bisnow`:
 - **ECR**: `560285300220.dkr.ecr.us-east-1.amazonaws.com/hello-k8s`
 - **Harbor**: `harbor.bisnow.cloud/bisnow/hello-k8s`
 
-You don't need to pass these URLs - they're built automatically from `service-name` and `namespace`.
+You don't need to pass these URLs - they're built automatically from `service-name` and `business-unit`.
 
 ## Usage
 
@@ -66,7 +66,7 @@ jobs:
           image-tag: dev-${{ github.run_number }}
           github-sha: ${{ github.sha }}
           service-name: hello-k8s
-          namespace: bisnow
+          business-unit: bisnow
 ```
 
 ### Multi-Platform Build
@@ -90,7 +90,7 @@ jobs:
           image-tag: dev-${{ github.run_number }}
           github-sha: ${{ github.sha }}
           service-name: hello-k8s
-          namespace: bisnow
+          business-unit: bisnow
           composer-auth: ${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
 ```
 
@@ -107,7 +107,7 @@ steps:
       image-tag: dev-${{ github.run_number }}
       github-sha: ${{ github.sha }}
       service-name: hello-k8s
-      namespace: bisnow
+      business-unit: bisnow
       composer-auth: ${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
       install-dependencies: 'true'
 ```
@@ -125,7 +125,7 @@ steps:
       image-tag: dev-${{ github.run_number }}
       github-sha: ${{ github.sha }}
       service-name: hello-k8s
-      namespace: bisnow
+      business-unit: bisnow
       build-assets: 'true'
 ```
 
@@ -145,7 +145,7 @@ steps:
       image-tag: dev-${{ github.run_number }}
       github-sha: ${{ github.sha }}
       service-name: hello-k8s
-      namespace: bisnow
+      business-unit: bisnow
       auth-json: 'true'
       composer-auth: ${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
       flux-username: ${{ secrets.FLUX_USERNAME }}
@@ -182,7 +182,7 @@ steps:
       image-tag: dev-${{ github.run_number }}
       github-sha: ${{ github.sha }}
       service-name: hello-k8s
-      namespace: bisnow
+      business-unit: bisnow
       build-args: |
         APP_ENV=production
         COMPOSER_AUTH=${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
@@ -202,16 +202,16 @@ steps:
       image-tag: dev-${{ github.run_number }}
       github-sha: ${{ github.sha }}
       service-name: hello-k8s
-      namespace: bisnow
+      business-unit: bisnow
       no-cache: true
 ```
 
 ## How It Works
 
-1. Validates that `service-name` and `namespace` are provided
+1. Validates that `service-name` and `business-unit` are provided
 2. Constructs registry URLs automatically:
    - ECR: `560285300220.dkr.ecr.us-east-1.amazonaws.com/{service-name}`
-   - Harbor: `harbor.bisnow.cloud/{namespace}/{service-name}`
+   - Harbor: `harbor.bisnow.cloud/{business-unit}/{service-name}`
 3. Checks out the repository
 4. (Optional) Sets up Node.js 22.x and builds assets if `build-assets` is enabled
    - Runs `npm ci` to install dependencies
@@ -245,8 +245,8 @@ These architecture-specific tags can then be combined into a multi-platform mani
 ## Caching
 
 The action uses Harbor for Docker layer caching:
-- **Cache source**: `harbor.bisnow.cloud/{namespace}/{service-name}:cache-{arch}`
-- **Cache destination**: `harbor.bisnow.cloud/{namespace}/{service-name}:cache-{arch}`
+- **Cache source**: `harbor.bisnow.cloud/{business-unit}/{service-name}:cache-{arch}`
+- **Cache destination**: `harbor.bisnow.cloud/{business-unit}/{service-name}:cache-{arch}`
 
 This ensures faster builds by reusing cached layers from previous builds stored in Harbor.
 
