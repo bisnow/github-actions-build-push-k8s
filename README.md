@@ -1,13 +1,14 @@
-# Build and Push Docker Image to ECR
+# Build and Push Docker Image to ECR and Harbor
 
-A composite GitHub Action that builds multi-platform Docker images and pushes them to Amazon ECR.
-This will be used in the process of deploying to kubernetes
+A composite GitHub Action that builds multi-platform Docker images and pushes them to both Amazon ECR and Harbor. Registry URLs are automatically constructed from the service name and business unit, so you don't need to pass them in. This action is used in the process of deploying to Kubernetes.
 
 ## Features
 
 - Multi-platform Docker image builds (amd64/arm64)
+- Automatic push to both Amazon ECR and Harbor
 - Automatic ECR authentication
-- Docker layer caching for faster builds
+- Automatic registry URL construction (no need to pass ECR or Harbor URLs)
+- Docker layer caching to Harbor for faster builds
 - Optional Composer dependency installation in workflow
 - Optional asset building (npm) before Docker build
 - Flexible authentication options:
@@ -20,11 +21,12 @@ This will be used in the process of deploying to kubernetes
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `aws-account` | AWS account name to assume role for | Yes | - |
 | `platform` | Platform to build for (e.g., `linux/amd64` or `linux/arm64`) | Yes | - |
 | `image-tag` | Image tag to use (e.g., `dev-123`) | Yes | - |
-| `ecr-registry` | ECR registry URL | Yes | - |
 | `github-sha` | GitHub commit SHA for tagging | Yes | - |
+| `service-name` | Name of service for location to store images in container repo | Yes | - |
+| `business-unit` | Specify if this is bisnow or biscred | Yes | - |
+| `aws-account` | AWS account name to assume role for | No | `bisnow` |
 | `auth-json` | Create auth.json for composer/flux auth (set to any non-empty value to enable) | No | `''` |
 | `composer-auth` | Composer authentication token for GitHub | No | - |
 | `flux-username` | Flux UI username for http-basic authentication | No | - |
@@ -34,6 +36,19 @@ This will be used in the process of deploying to kubernetes
 | `build-assets` | Build npm assets before Docker build (set to any non-empty value to enable) | No | `''` |
 | `no-cache` | Build without using cache (slower but ensures fresh build) | No | `false` |
 | `build-args` | Custom build arguments to pass to Docker build | No | - |
+
+## Registry URLs
+
+The action automatically constructs registry URLs based on your inputs:
+
+- **ECR**: `560285300220.dkr.ecr.us-east-1.amazonaws.com/{service-name}`
+- **Harbor**: `harbor.bisnow.cloud/{business-unit}/{service-name}`
+
+For example, with `service-name: hello-k8s` and `business-unit: bisnow`:
+- **ECR**: `560285300220.dkr.ecr.us-east-1.amazonaws.com/hello-k8s`
+- **Harbor**: `harbor.bisnow.cloud/bisnow/hello-k8s`
+
+You don't need to pass these URLs - they're built automatically from `service-name` and `business-unit`.
 
 ## Usage
 
@@ -47,11 +62,11 @@ jobs:
       - name: Build and Push Image
         uses: bisnow/github-actions-build-push-k8s@main
         with:
-          aws-account: bisnow
           platform: linux/amd64
           image-tag: dev-${{ github.run_number }}
-          ecr-registry: 560285300220.dkr.ecr.us-east-1.amazonaws.com/myapp
           github-sha: ${{ github.sha }}
+          service-name: hello-k8s
+          business-unit: bisnow
 ```
 
 ### Multi-Platform Build
@@ -71,11 +86,11 @@ jobs:
       - name: Build and Push ${{ matrix.platform }} Image
         uses: bisnow/github-actions-build-push-k8s@main
         with:
-          aws-account: bisnow
           platform: ${{ matrix.platform }}
           image-tag: dev-${{ github.run_number }}
-          ecr-registry: 560285300220.dkr.ecr.us-east-1.amazonaws.com/myapp
           github-sha: ${{ github.sha }}
+          service-name: hello-k8s
+          business-unit: bisnow
           composer-auth: ${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
 ```
 
@@ -88,11 +103,11 @@ steps:
   - name: Build and Push Image
     uses: bisnow/github-actions-build-push-k8s@main
     with:
-      aws-account: bisnow
       platform: linux/amd64
       image-tag: dev-${{ github.run_number }}
-      ecr-registry: 560285300220.dkr.ecr.us-east-1.amazonaws.com/myapp
       github-sha: ${{ github.sha }}
+      service-name: hello-k8s
+      business-unit: bisnow
       composer-auth: ${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
       install-dependencies: 'true'
 ```
@@ -106,11 +121,11 @@ steps:
   - name: Build and Push Image
     uses: bisnow/github-actions-build-push-k8s@main
     with:
-      aws-account: bisnow
       platform: linux/amd64
       image-tag: dev-${{ github.run_number }}
-      ecr-registry: 560285300220.dkr.ecr.us-east-1.amazonaws.com/myapp
       github-sha: ${{ github.sha }}
+      service-name: hello-k8s
+      business-unit: bisnow
       build-assets: 'true'
 ```
 
@@ -128,8 +143,9 @@ steps:
       aws-account: bisnow
       platform: linux/amd64
       image-tag: dev-${{ github.run_number }}
-      ecr-registry: 560285300220.dkr.ecr.us-east-1.amazonaws.com/myapp
       github-sha: ${{ github.sha }}
+      service-name: hello-k8s
+      business-unit: bisnow
       auth-json: 'true'
       composer-auth: ${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
       flux-username: ${{ secrets.FLUX_USERNAME }}
@@ -162,11 +178,11 @@ steps:
   - name: Build and Push Image
     uses: bisnow/github-actions-build-push-k8s@main
     with:
-      aws-account: bisnow
       platform: linux/amd64
       image-tag: dev-${{ github.run_number }}
-      ecr-registry: 560285300220.dkr.ecr.us-east-1.amazonaws.com/myapp
       github-sha: ${{ github.sha }}
+      service-name: hello-k8s
+      business-unit: bisnow
       build-args: |
         APP_ENV=production
         COMPOSER_AUTH=${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
@@ -184,37 +200,55 @@ steps:
       aws-account: bisnow
       platform: linux/amd64
       image-tag: dev-${{ github.run_number }}
-      ecr-registry: 560285300220.dkr.ecr.us-east-1.amazonaws.com/myapp
       github-sha: ${{ github.sha }}
+      service-name: hello-k8s
+      business-unit: bisnow
       no-cache: true
 ```
 
 ## How It Works
 
-1. Checks out the repository
-2. (Optional) Sets up Node.js 22.x and builds assets if `build-assets` is enabled
+1. Validates that `service-name` and `business-unit` are provided
+2. Constructs registry URLs automatically:
+   - ECR: `560285300220.dkr.ecr.us-east-1.amazonaws.com/{service-name}`
+   - Harbor: `harbor.bisnow.cloud/{business-unit}/{service-name}`
+3. Checks out the repository
+4. (Optional) Sets up Node.js 22.x and builds assets if `build-assets` is enabled
    - Runs `npm ci` to install dependencies
    - Runs `npm run build` to build assets
-3. (Optional) Sets up PHP and configures Composer credentials if `auth-json` is enabled
+5. (Optional) Sets up PHP and configures Composer credentials if `auth-json` is enabled
    - Creates auth.json file with GitHub OAuth and/or Flux credentials
    - Supports both GitHub and Flux UI authentication
-4. Assumes the specified AWS role for ECR access
-5. (Optional) Installs Composer dependencies if `install-dependencies` is set
-6. Sets up Docker Buildx for multi-platform builds
-7. Logs into Amazon ECR
-8. Builds and pushes the Docker image with:
-   - Two tags: `{image-tag}-{arch}` and `{github-sha}-{arch}`
-   - Registry layer caching for faster subsequent builds
-   - Optional custom build arguments
+6. Assumes the specified AWS role for ECR access
+7. (Optional) Installs Composer dependencies if `install-dependencies` is set
+8. Sets up Docker Buildx for multi-platform builds
+9. Logs into Amazon ECR (Harbor authentication is handled by the runner)
+10. Builds and pushes the Docker image to both registries with:
+    - Four tags total (two per registry): `{image-tag}-{arch}` and `{github-sha}-{arch}`
+    - Registry layer caching to Harbor for faster subsequent builds
+    - Optional custom build arguments
 
 ## Image Tags
 
-The action creates two tags for each build:
+The action creates four tags for each build (two per registry):
 
+**ECR Tags:**
 - `{image-tag}-{arch}` - e.g., `dev-123-amd64`
-- `{github-sha}-{arch}` - e.g., `abc123def-arm64`
+- `{github-sha}-{arch}` - e.g., `abc123def-amd64`
+
+**Harbor Tags:**
+- `{image-tag}-{arch}` - e.g., `dev-123-amd64`
+- `{github-sha}-{arch}` - e.g., `abc123def-amd64`
 
 These architecture-specific tags can then be combined into a multi-platform manifest.
+
+## Caching
+
+The action uses Harbor for Docker layer caching:
+- **Cache source**: `harbor.bisnow.cloud/{business-unit}/{service-name}:cache-{arch}`
+- **Cache destination**: `harbor.bisnow.cloud/{business-unit}/{service-name}:cache-{arch}`
+
+This ensures faster builds by reusing cached layers from previous builds stored in Harbor.
 
 ## Versioning
 

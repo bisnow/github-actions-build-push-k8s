@@ -1,5 +1,5 @@
 name: Build and Push Docker Image
-description: Builds a Docker image and pushes it to either Amazon ECR or Harbor
+description: Builds a Docker image and pushes it to Amazon ECR and Harbor
 
 inputs:
   platform:
@@ -11,14 +11,13 @@ inputs:
   github-sha:
     description: 'GitHub commit SHA'
     required: true
-  ecr-registry:
-    description: 'ECR registry URL. Provide this OR harbor-registry, not both.'
-    required: false
-    default: ''
-  harbor-registry:
-    description: 'Harbor registry URL (e.g., harbor.bisnow.cloud/bisnow/hello-k8s). Provide this OR ecr-registry, not both.'
-    required: false
-    default: ''
+  service-name:
+    description: 'Name of sevice for location to store images in container repo'
+    required: true
+  business-unit:
+    description: 'Specify if this is bisnow or biscred'
+    required: true
+    default: 'bisnow'
   aws-account:
     description: 'AWS account name to assume role for'
     required: false
@@ -57,18 +56,22 @@ inputs:
     required: false
     default: ''
 
+
+
 runs:
   using: composite
   steps:
-    - name: Validate registry inputs
+    - name: Validate service name & business-unit input
       shell: bash
       run: |
-        if [ -z "${{ inputs.ecr-registry }}" ] && [ -z "${{ inputs.harbor-registry }}" ]; then
-          echo "ERROR: You must provide either ecr-registry or harbor-registry"
+        if [ -z "${{ inputs.service-name }}" ]; then
+          echo "❌ [build-push-k8s] Service name not provided. Cannot push to container repository without service name."
+          echo "🔎 Solution: Add 'service-name' field to the 'build-push-k8s' action."
           exit 1
         fi
-        if [ -n "${{ inputs.ecr-registry }}" ] && [ -n "${{ inputs.harbor-registry }}" ]; then
-          echo "ERROR: Provide ecr-registry OR harbor-registry, not both"
+        if [ -z "${{ inputs.business-unit }}" ]; then
+          echo "❌ [build-push-k8s] business-unit not provided. Cannot push to Harbor without business-unit."
+          echo "🔎 Solution: Add 'business-unit' field to the 'build-push-k8s' action."
           exit 1
         fi
 
@@ -76,11 +79,9 @@ runs:
       id: registry
       shell: bash
       run: |
-        if [ -n "${{ inputs.harbor-registry }}" ]; then
-          echo "url=${{ inputs.harbor-registry }}" >> $GITHUB_OUTPUT
-        else
-          echo "url=${{ inputs.ecr-registry }}" >> $GITHUB_OUTPUT
-        fi
+          echo "ecr_url=560285300220.dkr.ecr.us-east-1.amazonaws.com/${{ inputs.service-name }}" >> $GITHUB_OUTPUT
+          echo "harbor_url=harbor.bisnow.cloud/${{ inputs.business-unit }}/${{ inputs.service-name }}" >> $GITHUB_OUTPUT
+        
 
     - name: Checkout Repository
       uses: actions/checkout@v5
@@ -145,10 +146,12 @@ runs:
         push: true
         no-cache: "${{ inputs.no-cache || false }}"
         tags: |
-          ${{ steps.registry.outputs.url }}:${{ inputs.image-tag }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-          ${{ steps.registry.outputs.url }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-        cache-from: type=registry,ref=${{ steps.registry.outputs.url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-        cache-to: type=registry,ref=${{ steps.registry.outputs.url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
+          ${{ steps.registry.outputs.harbor_url }}:${{ inputs.image-tag }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          ${{ steps.registry.outputs.harbor_url }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          ${{ steps.registry.outputs.ecr_url }}:${{ inputs.image-tag }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          ${{ steps.registry.outputs.ecr_url }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        cache-from: type=registry,ref=${{ steps.registry.outputs.harbor_url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        cache-to: type=registry,ref=${{ steps.registry.outputs.harbor_url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
         build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false
