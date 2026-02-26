@@ -15,7 +15,7 @@ inputs:
     description: 'Name of sevice for location to store images in container repo'
     required: true
   business-unit:
-    description: 'Specify if this is bisnow or biscred - true = bisnow -> false = biscred'
+    description: 'Specify if this is bisnow or biscred'
     required: true
   aws-account:
     description: 'AWS account name to assume role for'
