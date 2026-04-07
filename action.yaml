@@ -138,6 +138,12 @@ runs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Login to Harbor
+      shell: bash
+      run: |
+        HARBOR_PASSWORD=$(cat /harbor-creds/config.json | python3 -c "import sys,json; print(json.load(sys.stdin)['auths']['harbor.bisnow.cloud']['password'])")
+        echo "${HARBOR_PASSWORD}" | docker login harbor.bisnow.cloud -u 'robot$arc-cicd' --password-stdin
+
     - name: Build and Push ${{ inputs.platform }} Image (${{ inputs.image-tag }})
       uses: docker/build-push-action@v7
       with:
