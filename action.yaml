@@ -81,7 +81,18 @@ runs:
       run: |
           echo "ecr_url=560285300220.dkr.ecr.us-east-1.amazonaws.com/${{ inputs.service-name }}" >> $GITHUB_OUTPUT
           echo "harbor_url=harbor.bisnow.cloud/${{ inputs.business-unit }}/${{ inputs.service-name }}" >> $GITHUB_OUTPUT
-        
+
+    - name: Save Harbor credentials
+      id: harbor-creds
+      shell: bash
+      run: |
+        if [ -f /home/runner/.docker/config.json ]; then
+          HARBOR_PASSWORD=$(python3 -c "import json; c=json.load(open('/home/runner/.docker/config.json')); print(c['auths']['harbor.bisnow.cloud']['password'])")
+          echo "::add-mask::${HARBOR_PASSWORD}"
+          echo "password=${HARBOR_PASSWORD}" >> $GITHUB_OUTPUT
+        else
+          echo "::warning::No Docker config found at /home/runner/.docker/config.json"
+        fi
 
     - name: Checkout Repository
       uses: actions/checkout@v6
@@ -139,10 +150,10 @@ runs:
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Login to Harbor
+      if: ${{ steps.harbor-creds.outputs.password != '' }}
       shell: bash
       run: |
-        HARBOR_PASSWORD=$(cat /harbor-creds/config.json | python3 -c "import sys,json; print(json.load(sys.stdin)['auths']['harbor.bisnow.cloud']['password'])")
-        echo "${HARBOR_PASSWORD}" | docker login harbor.bisnow.cloud -u 'robot$arc-cicd' --password-stdin
+        echo "${{ steps.harbor-creds.outputs.password }}" | docker login harbor.bisnow.cloud -u 'robot$arc-cicd' --password-stdin
 
     - name: Build and Push ${{ inputs.platform }} Image (${{ inputs.image-tag }})
       uses: docker/build-push-action@v7
