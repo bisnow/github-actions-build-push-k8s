@@ -167,8 +167,10 @@ runs:
           ${{ steps.registry.outputs.harbor_url }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           ${{ steps.registry.outputs.ecr_url }}:${{ inputs.image-tag }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           ${{ steps.registry.outputs.ecr_url }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-        cache-from: type=registry,ref=${{ steps.registry.outputs.harbor_url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-        cache-to: type=registry,ref=${{ steps.registry.outputs.harbor_url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
+        cache-from: |
+          type=local,src=/cache/buildx/${{ inputs.service-name }}/${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          type=registry,ref=${{ steps.registry.outputs.harbor_url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        cache-to: type=local,dest=/cache/buildx/${{ inputs.service-name }}/${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
         build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false
