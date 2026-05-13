@@ -55,6 +55,12 @@ inputs:
     description: 'Build assets'
     required: false
     default: ''
+  only-harbor:
+    description: 'Use only harbor, no ecr'
+    required: false
+    type: boolean
+    default: false
+
 
 
 
@@ -146,6 +152,7 @@ runs:
       uses: docker/setup-buildx-action@v4
 
     - name: Login to Amazon ECR
+      if: ${{ inputs.only-harbor != 'true' }}
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
@@ -156,6 +163,7 @@ runs:
         echo "${{ steps.harbor-creds.outputs.password }}" | docker login harbor.bisnow.cloud -u 'robot$arc-cicd' --password-stdin
 
     - name: Build and Push ${{ inputs.platform }} Image (${{ inputs.image-tag }})
+      if: ${{ inputs.only-harbor != 'true' }}
       uses: docker/build-push-action@v7
       with:
         context: .
@@ -167,6 +175,24 @@ runs:
           ${{ steps.registry.outputs.harbor_url }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           ${{ steps.registry.outputs.ecr_url }}:${{ inputs.image-tag }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           ${{ steps.registry.outputs.ecr_url }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        cache-from: type=registry,ref=${{ steps.registry.outputs.harbor_url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        cache-to: type=registry,ref=${{ steps.registry.outputs.harbor_url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
+        build-args: ${{ inputs.build-args }}
+        provenance: false
+        sbom: false
+        secret-files: ${{ inputs.auth-json != '' && 'composer_auth=auth.json' || '' }}
+    
+    - name: Build and Push ${{ inputs.platform }} Image (${{ inputs.image-tag }}) to harbor
+      if: ${{ inputs.only-harbor == 'true' }}
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        platforms: ${{ inputs.platform }}
+        push: true
+        no-cache: "${{ inputs.no-cache || false }}"
+        tags: |
+          ${{ steps.registry.outputs.harbor_url }}:${{ inputs.image-tag }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          ${{ steps.registry.outputs.harbor_url }}:${{ inputs.github-sha }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
         cache-from: type=registry,ref=${{ steps.registry.outputs.harbor_url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
         cache-to: type=registry,ref=${{ steps.registry.outputs.harbor_url }}:cache-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
         build-args: ${{ inputs.build-args }}

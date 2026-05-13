@@ -5,7 +5,7 @@ A composite GitHub Action that builds multi-platform Docker images and pushes th
 ## Features
 
 - Multi-platform Docker image builds (amd64/arm64)
-- Automatic push to both Amazon ECR and Harbor
+- Automatic push to both Amazon ECR and Harbor (or Harbor-only via `only-harbor`)
 - Automatic ECR authentication
 - Automatic registry URL construction (no need to pass ECR or Harbor URLs)
 - Docker layer caching to Harbor for faster builds
@@ -36,6 +36,7 @@ A composite GitHub Action that builds multi-platform Docker images and pushes th
 | `build-assets` | Build npm assets before Docker build (set to any non-empty value to enable) | No | `''` |
 | `no-cache` | Build without using cache (slower but ensures fresh build) | No | `false` |
 | `build-args` | Custom build arguments to pass to Docker build | No | - |
+| `only-harbor` | Push to Harbor only, skipping ECR login and push | No | `false` |
 
 ## Registry URLs
 
@@ -188,6 +189,23 @@ steps:
         COMPOSER_AUTH=${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
 ```
 
+### Harbor Only (Skip ECR)
+
+Use `only-harbor: true` to push to Harbor without logging into or pushing to ECR. Useful for services that don't need ECR:
+
+```yaml
+steps:
+  - name: Build and Push Image
+    uses: bisnow/github-actions-build-push-k8s@main
+    with:
+      platform: linux/amd64
+      image-tag: dev-${{ github.run_number }}
+      github-sha: ${{ github.sha }}
+      service-name: hello-k8s
+      business-unit: bisnow
+      only-harbor: true
+```
+
 ### Force Rebuild Without Cache
 
 Useful for troubleshooting or ensuring a completely fresh build:
@@ -222,21 +240,28 @@ steps:
 6. Assumes the specified AWS role for ECR access
 7. (Optional) Installs Composer dependencies if `install-dependencies` is set
 8. Sets up Docker Buildx for multi-platform builds
-9. Logs into Amazon ECR (Harbor authentication is handled by the runner)
-10. Builds and pushes the Docker image to both registries with:
-    - Four tags total (two per registry): `{image-tag}-{arch}` and `{github-sha}-{arch}`
+9. Saves Harbor credentials from the runner's Docker config before ECR login can overwrite them
+10. (If `only-harbor` is false) Logs into Amazon ECR
+11. Re-authenticates with Harbor using the saved credentials
+12. Builds and pushes the Docker image with:
+    - If `only-harbor` is false: four tags across ECR and Harbor (`{image-tag}-{arch}` and `{github-sha}-{arch}`)
+    - If `only-harbor` is true: two tags to Harbor only
     - Registry layer caching to Harbor for faster subsequent builds
     - Optional custom build arguments
 
 ## Image Tags
 
-The action creates four tags for each build (two per registry):
+**Default (ECR + Harbor)** — four tags per build:
 
 **ECR Tags:**
 - `{image-tag}-{arch}` - e.g., `dev-123-amd64`
 - `{github-sha}-{arch}` - e.g., `abc123def-amd64`
 
 **Harbor Tags:**
+- `{image-tag}-{arch}` - e.g., `dev-123-amd64`
+- `{github-sha}-{arch}` - e.g., `abc123def-amd64`
+
+**Harbor only (`only-harbor: true`)** — two tags per build, Harbor only:
 - `{image-tag}-{arch}` - e.g., `dev-123-amd64`
 - `{github-sha}-{arch}` - e.g., `abc123def-amd64`
 
