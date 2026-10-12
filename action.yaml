@@ -135,6 +135,9 @@ runs:
         fi
 
     - name: Assume role for AWS Account
+      # Only the ECR path needs AWS. Harbor credentials come from the runner's
+      # Docker config, so a Harbor-only build never assumes an AWS role.
+      if: ${{ inputs.only-harbor != 'true' }}
       uses: bisnow/github-actions-assume-role-for-environment@main
       with:
         aws-account: ${{ inputs.aws-account }}
