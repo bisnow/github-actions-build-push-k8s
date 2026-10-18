@@ -211,7 +211,7 @@ steps:
 
 ```dockerfile
 RUN --mount=type=secret,id=sentry_auth_token \
-    SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token)" npm run build
+    SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null)" npm run build
 ```
 
 ### Harbor Only (Skip ECR)
