@@ -60,6 +60,10 @@ inputs:
     required: false
     type: boolean
     default: false
+  secrets:
+    description: 'BuildKit secrets to expose to the build, one id=value per line (read with RUN --mount=type=secret,id=<id>). Unlike build-args, they never land in an image layer.'
+    required: false
+    default: ''
 
 
 
@@ -184,6 +188,7 @@ runs:
         provenance: false
         sbom: false
         secret-files: ${{ inputs.auth-json != '' && 'composer_auth=auth.json' || '' }}
+        secrets: ${{ inputs.secrets }}
     
     - name: Build and Push ${{ inputs.platform }} Image (${{ inputs.image-tag }}) to harbor
       if: ${{ inputs.only-harbor == 'true' }}
@@ -202,3 +207,4 @@ runs:
         provenance: false
         sbom: false
         secret-files: ${{ inputs.auth-json != '' && 'composer_auth=auth.json' || '' }}
+        secrets: ${{ inputs.secrets }}
