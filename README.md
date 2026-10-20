@@ -37,6 +37,7 @@ A composite GitHub Action that builds multi-platform Docker images and pushes th
 | `no-cache` | Build without using cache (slower but ensures fresh build) | No | `false` |
 | `build-args` | Custom build arguments to pass to Docker build | No | - |
 | `only-harbor` | Push to Harbor only, skipping ECR login and push | No | `false` |
+| `secrets` | BuildKit secrets for the build, one `id=value` per line; read with `RUN --mount=type=secret,id=<id>` | No | `''` |
 
 ## Registry URLs
 
@@ -187,6 +188,30 @@ steps:
       build-args: |
         APP_ENV=production
         COMPOSER_AUTH=${{ secrets.COMPOSER_OAUTH_GITHUB_ACTIONS }}
+```
+
+### With Build Secrets
+
+Expose a secret to one `RUN` step without writing it into a layer. Unlike `build-args`, a secret
+isn't kept in the image or its history:
+
+```yaml
+steps:
+  - name: Build and Push Image
+    uses: bisnow/github-actions-build-push-k8s@v4
+    with:
+      platform: linux/amd64
+      image-tag: dev-${{ github.run_number }}
+      github-sha: ${{ github.sha }}
+      service-name: hello-k8s
+      business-unit: bisnow
+      secrets: |
+        sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
+```
+
+```dockerfile
+RUN --mount=type=secret,id=sentry_auth_token \
+    SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null)" npm run build
 ```
 
 ### Harbor Only (Skip ECR)
